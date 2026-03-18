@@ -3,12 +3,12 @@ provider "aws" {
 }
 
 module "vpc" {
-  source = "../modules/vpc"
+  source = "../../modules/vpc"
 }
 
 module "eks" {
 
-  source = "../modules/eks"
+  source = "../../modules/eks"
 
   public_subnet = module.vpc.public_subnet
   private_subnet = module.vpc.private_subnet
@@ -16,12 +16,12 @@ module "eks" {
 
 module "rds" {
 
-  source = "../modules/rds"
+  source = "../../modules/rds"
 
   db_username = "admin"
   db_password = "securepassword"
 }
 
 module "ecr" {
-  source = "../modules/ecr"
+  source = "../../modules/ecr"
 }
