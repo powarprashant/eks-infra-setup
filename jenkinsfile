@@ -1,0 +1,56 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION = "ap-south-1"
+    }
+
+    stages {
+
+        stage('Clone Repo') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                dir('environments/dev') {
+                    sh 'terraform init'
+                }
+            }
+        }
+
+        stage('Terraform Validate') {
+            steps {
+                dir('environments/dev') {
+                    sh 'terraform validate'
+                }
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                dir('environments/dev') {
+                    sh 'terraform plan'
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            steps {
+                dir('environments/dev') {
+                    sh 'terraform apply -auto-approve'
+                }
+            }
+        }
+
+        stage('Update kubeconfig') {
+            steps {
+                sh './scripts/update-kubeconfig.sh'
+            }
+        }
+
+    }
+}
+
