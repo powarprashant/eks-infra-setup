@@ -10,7 +10,7 @@ module "eks" {
 
   source = "../../modules/eks"
 
-  public_subnet = module.vpc.public_subnet
+  public_subnet  = module.vpc.public_subnet
   private_subnet = module.vpc.private_subnet
 }
 
