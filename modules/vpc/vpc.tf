@@ -1,3 +1,5 @@
+data "aws_availability_zones" "available" {}
+
 resource "aws_vpc" "cloudcart_vpc" {
   cidr_block = "10.0.0.0/16"
 
@@ -6,20 +8,30 @@ resource "aws_vpc" "cloudcart_vpc" {
   }
 }
 
-resource "aws_subnet" "public_subnet" {
-  vpc_id = aws_vpc.cloudcart_vpc.id
-  cidr_block = "10.0.1.0/24"
-  availability_zone = "ap-south-1a"
+resource "aws_subnet" "public" {
+  count = 2
+
+  vpc_id     = aws_vpc.cloudcart_vpc.id
+  cidr_block = cidrsubnet(aws_vpc.cloudcart_vpc.cidr_block, 8, count.index)
+
+  availability_zone = data.aws_availability_zones.available.names[count.index]
 
   map_public_ip_on_launch = true
+
+  tags = {
+    Name = "cloudcart-public-${count.index}"
+  }
 }
 
-resource "aws_subnet" "private_subnet" {
-  vpc_id = aws_vpc.cloudcart_vpc.id
-  cidr_block = "10.0.2.0/24"
-  availability_zone = "ap-south-1a"
-}
+resource "aws_subnet" "private" {
+  count = 2
 
-output "vpc_id" {
-  value = aws_vpc.cloudcart_vpc.id
+  vpc_id     = aws_vpc.cloudcart_vpc.id
+  cidr_block = cidrsubnet(aws_vpc.cloudcart_vpc.cidr_block, 8, count.index + 10)
+
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+
+  tags = {
+    Name = "cloudcart-private-${count.index}"
+  }
 }
