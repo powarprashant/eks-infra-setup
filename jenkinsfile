@@ -37,6 +37,14 @@ pipeline {
             }
         }
 
+        stage('Security Scan - Trivy (Terraform IaC)') {
+            steps {
+                dir('environments/dev') {
+                    sh 'trivy config .'
+                }
+            }
+        }
+
         stage('Terraform Plan') {
             steps {
                 dir('environments/dev') {
