@@ -7,7 +7,6 @@ module "vpc" {
 }
 
 module "eks" {
-
   source = "../../modules/eks"
 
   public_subnet  = module.vpc.public_subnet
@@ -15,7 +14,6 @@ module "eks" {
 }
 
 module "rds" {
-
   source = "../../modules/rds"
 
   db_username = "admin"
