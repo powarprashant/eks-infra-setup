@@ -2,6 +2,7 @@ resource "aws_eks_cluster" "cloudcart_eks" {
 
   name     = "cloudcart-eks"
   role_arn = aws_iam_role.eks_role.arn
+  version  = "1.29"
 
   vpc_config {
     subnet_ids = concat(var.public_subnet, var.private_subnet)
@@ -25,5 +26,9 @@ resource "aws_eks_node_group" "cloudcart_nodes" {
   }
 
   instance_types = ["t3.medium"]
+
+  depends_on = [
+    aws_eks_cluster.cloudcart_eks
+  ]
 
 }
