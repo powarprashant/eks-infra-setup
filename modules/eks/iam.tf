@@ -4,7 +4,7 @@
 
 resource "aws_iam_role" "eks_role" {
 
-  name = "cloudcart-eks-cluster-role"
+  name = "${var.cluster_name}-cluster-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -19,6 +19,8 @@ resource "aws_iam_role" "eks_role" {
     ]
   })
 
+  tags = var.tags
+
 }
 
 ############################
@@ -32,12 +34,7 @@ resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
 
 }
 
-resource "aws_iam_role_policy_attachment" "eks_service_policy" {
-
-  role       = aws_iam_role.eks_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
-
-}
+# NOTE: AmazonEKSServicePolicy is deprecated since EKS 1.x — intentionally removed
 
 ############################
 # Worker Node IAM Role
@@ -45,7 +42,7 @@ resource "aws_iam_role_policy_attachment" "eks_service_policy" {
 
 resource "aws_iam_role" "node_role" {
 
-  name = "cloudcart-eks-node-role"
+  name = "${var.cluster_name}-node-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -59,6 +56,8 @@ resource "aws_iam_role" "node_role" {
       }
     ]
   })
+
+  tags = var.tags
 
 }
 
@@ -84,5 +83,37 @@ resource "aws_iam_role_policy_attachment" "ecr_policy" {
 
   role       = aws_iam_role.node_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+
+}
+
+############################
+# IRSA — Example role for a pod-level service account
+# Duplicate this block for each app that needs AWS access
+############################
+
+resource "aws_iam_role" "irsa_example" {
+
+  name = "${var.cluster_name}-irsa-example-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub" = "system:serviceaccount:default:example-sa"
+            "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
 
 }
