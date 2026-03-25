@@ -52,6 +52,7 @@ variable "kms_key_arn" {
 variable "tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)
+
   default = {
     Project     = "cloudcart"
     Environment = "production"
