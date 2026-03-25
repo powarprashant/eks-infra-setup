@@ -9,7 +9,16 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
+                cleanWs()
                 checkout scm
+            }
+        }
+
+        stage('Debug Workspace') {
+            steps {
+                sh 'pwd'
+                sh 'ls -R'
+                sh 'cat environments/dev/main.tf'
             }
         }
 
@@ -78,6 +87,5 @@ pipeline {
                 sh 'kubectl get nodes'
             }
         }
-
     }
 }

@@ -2,12 +2,12 @@ provider "aws" {
   region = "ap-south-1"
 }
 
-############################
+####################################
 # KMS Key for EKS Encryption
-############################
+####################################
 
 resource "aws_kms_key" "eks" {
-  description             = "KMS key for encrypting Kubernetes secrets in EKS"
+  description             = "EKS Kubernetes secrets encryption key"
   deletion_window_in_days = 7
   enable_key_rotation     = true
 }
@@ -17,31 +17,31 @@ resource "aws_kms_alias" "eks" {
   target_key_id = aws_kms_key.eks.key_id
 }
 
-############################
-# VPC Module
-############################
+####################################
+# VPC
+####################################
 
 module "vpc" {
   source = "../../modules/vpc"
 }
 
-############################
-# EKS Module
-############################
+####################################
+# EKS
+####################################
 
 module "eks" {
   source = "../../modules/eks"
 
   public_subnet  = module.vpc.public_subnet
   private_subnet = module.vpc.private_subnet
-  vpc_id         = module.vpc.vpc_id
 
+  vpc_id      = module.vpc.vpc_id
   kms_key_arn = aws_kms_key.eks.arn
 }
 
-############################
-# RDS Module
-############################
+####################################
+# RDS
+####################################
 
 module "rds" {
   source = "../../modules/rds"
@@ -50,9 +50,9 @@ module "rds" {
   db_password = var.db_password
 }
 
-############################
-# ECR Module
-############################
+####################################
+# ECR
+####################################
 
 module "ecr" {
   source = "../../modules/ecr"
