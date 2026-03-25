@@ -15,15 +15,22 @@ resource "aws_eks_cluster" "cloudcart_eks" {
     security_group_ids      = [aws_security_group.eks_cluster_sg.id]
   }
 
-  # Encrypt Kubernetes secrets at rest using KMS
+  ###################################
+  # KMS Encryption for Kubernetes Secrets
+  ###################################
+
   encryption_config {
     provider {
       key_arn = var.kms_key_arn
     }
+
     resources = ["secrets"]
   }
 
-  # Enable all control plane logs
+  ###################################
+  # Enable Control Plane Logs
+  ###################################
+
   enabled_cluster_log_types = [
     "api",
     "audit",
@@ -33,11 +40,10 @@ resource "aws_eks_cluster" "cloudcart_eks" {
   ]
 
   tags = var.tags
-
 }
 
 ############################
-# OIDC Provider (required for IRSA)
+# OIDC Provider (for IRSA)
 ############################
 
 data "tls_certificate" "eks" {
@@ -45,6 +51,7 @@ data "tls_certificate" "eks" {
 }
 
 resource "aws_iam_openid_connect_provider" "eks" {
+
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
   url             = aws_eks_cluster.cloudcart_eks.identity[0].oidc[0].issuer
@@ -62,7 +69,6 @@ resource "aws_eks_node_group" "cloudcart_nodes" {
   node_group_name = "cloudcart-workers"
   node_role_arn   = aws_iam_role.node_role.arn
 
-  # Workers go in private subnets only
   subnet_ids = var.private_subnet
 
   scaling_config {
@@ -73,10 +79,8 @@ resource "aws_eks_node_group" "cloudcart_nodes" {
 
   instance_types = ["t3.medium"]
 
-  # Use Bottlerocket — minimal attack surface, immutable OS
   ami_type = "BOTTLEROCKET_x86_64"
 
-  # Encrypt worker node EBS volumes
   disk_size = 20
 
   update_config {
@@ -94,17 +98,16 @@ resource "aws_eks_node_group" "cloudcart_nodes" {
     aws_iam_role_policy_attachment.cni_policy,
     aws_iam_role_policy_attachment.ecr_policy,
   ]
-
 }
 
 ############################
-# Security Group for EKS Cluster
+# Security Group for EKS
 ############################
 
 resource "aws_security_group" "eks_cluster_sg" {
 
   name        = "${var.cluster_name}-cluster-sg"
-  description = "Security group for EKS cluster control plane"
+  description = "Security group for EKS control plane"
   vpc_id      = var.vpc_id
 
   egress {
@@ -112,11 +115,9 @@ resource "aws_security_group" "eks_cluster_sg" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
   }
 
   tags = merge(var.tags, {
     Name = "${var.cluster_name}-cluster-sg"
   })
-
 }
