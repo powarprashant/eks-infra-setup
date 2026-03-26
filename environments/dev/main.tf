@@ -46,7 +46,7 @@ module "eks" {
 module "rds" {
   source = "../../modules/rds"
 
-  db_username = "admin"
+  db_username = var.db_username
   db_password = var.db_password
 }
 
