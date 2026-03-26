@@ -17,9 +17,11 @@ pipeline {
         stage('Fetch Secrets from Vault') {
             steps {
                 withVault([
-                    vaultUrl: 'http://35.154.145.48:8200',
-                    vaultCredentialId: 'jenkins-vault-access',
-                    engineVersion: 2,
+                    configuration: [
+                        vaultUrl: 'http://35.154.145.48:8200',
+                        vaultCredentialId: 'jenkins-vault-access',
+                        engineVersion: 2
+                    ],
                     vaultSecrets: [
 
                         [
@@ -50,7 +52,6 @@ pipeline {
                 ]) {
 
                     sh 'echo "Vault secrets loaded successfully"'
-
                 }
             }
         }
@@ -120,5 +121,6 @@ pipeline {
                 sh 'kubectl get nodes'
             }
         }
+
     }
 }
