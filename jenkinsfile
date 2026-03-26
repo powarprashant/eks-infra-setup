@@ -17,18 +17,21 @@ pipeline {
         stage('Fetch Secrets from Vault') {
             steps {
                 withVault([
+                    vaultUrl: 'http://35.154.145.48:8200',
+                    vaultCredentialId: 'jenkins-vault-access',
+                    engineVersion: 2,
                     vaultSecrets: [
 
                         [
-                            path: 'secret/data/aws',
+                            path: 'secret/aws',
                             secretValues: [
                                 [envVar: 'AWS_ACCESS_KEY_ID', vaultKey: 'access_key'],
-                                [envVar: 'AWS_SECRET_ACCESS_KEY', vaultKey: 'secret_key']
+                                [envVar: 'AWS_SECRET_ACCESS_KEY', vaultKey: 'secret-access_key']
                             ]
                         ],
 
                         [
-                            path: 'secret/data/db',
+                            path: 'secret/db',
                             secretValues: [
                                 [envVar: 'TF_VAR_db_username', vaultKey: 'db_username'],
                                 [envVar: 'TF_VAR_db_password', vaultKey: 'db_password']
@@ -36,7 +39,7 @@ pipeline {
                         ],
 
                         [
-                            path: 'secret/data/docker',
+                            path: 'secret/docker',
                             secretValues: [
                                 [envVar: 'DOCKER_USERNAME', vaultKey: 'docker_username'],
                                 [envVar: 'DOCKER_PASSWORD', vaultKey: 'docker_password']
