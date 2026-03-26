@@ -1,102 +1,101 @@
 pipeline {
-agent any
+    agent any
 
-```
-environment {
-    AWS_REGION = "ap-south-1"
-    VAULT_ADDR = "http://35.154.145.48:8200"
-}
-
-stages {
-
-    stage('Checkout Code') {
-        steps {
-            cleanWs()
-            checkout scm
-        }
+    environment {
+        AWS_REGION = "ap-south-1"
+        VAULT_ADDR = "http://35.154.145.48:8200"
     }
 
-    stage('Terraform Plan (Vault Secrets)') {
-        steps {
+    options {
+        timestamps()
+        ansiColor('xterm')
+    }
 
-            withVault([
-                configuration: [
-                    vaultUrl: "${VAULT_ADDR}",
-                    vaultCredentialId: 'jenkins-vault-access',
-                    engineVersion: 2
-                ],
-                vaultSecrets: [
+    stages {
 
-                    [
-                        path: 'secret/aws',
-                        secretValues: [
-                            [envVar: 'AWS_ACCESS_KEY_ID', vaultKey: 'access_key'],
-                            [envVar: 'AWS_SECRET_ACCESS_KEY', vaultKey: 'secret-access_key']
-                        ]
+        stage('Checkout Code') {
+            steps {
+                cleanWs()
+                checkout scm
+            }
+        }
+
+        stage('Terraform Plan (Vault Secrets)') {
+            steps {
+                withVault([
+                    configuration: [
+                        vaultUrl: VAULT_ADDR,
+                        vaultCredentialId: 'jenkins-vault-access',
+                        engineVersion: 2
                     ],
-
-                    [
-                        path: 'secret/db',
-                        secretValues: [
-                            [envVar: 'TF_VAR_db_username', vaultKey: 'db_username'],
-                            [envVar: 'TF_VAR_db_password', vaultKey: 'db_password']
-                        ]
-                    ],
-
-                    [
-                        path: 'secret/docker',
-                        secretValues: [
-                            [envVar: 'DOCKER_USERNAME', vaultKey: 'docker_username'],
-                            [envVar: 'DOCKER_PASSWORD', vaultKey: 'docker_password']
+                    vaultSecrets: [
+                        [
+                            path: 'secret/aws',
+                            secretValues: [
+                                [envVar: 'AWS_ACCESS_KEY_ID',     vaultKey: 'access_key'],
+                                [envVar: 'AWS_SECRET_ACCESS_KEY', vaultKey: 'secret-access_key']
+                            ]
+                        ],
+                        [
+                            path: 'secret/db',
+                            secretValues: [
+                                [envVar: 'TF_VAR_db_username', vaultKey: 'db_username'],
+                                [envVar: 'TF_VAR_db_password', vaultKey: 'db_password']
+                            ]
+                        ],
+                        [
+                            path: 'secret/docker',
+                            secretValues: [
+                                [envVar: 'DOCKER_USERNAME', vaultKey: 'docker_username'],
+                                [envVar: 'DOCKER_PASSWORD', vaultKey: 'docker_password']
+                            ]
                         ]
                     ]
-
-                ]
-            ]) {
-
-                dir('environments/dev') {
-
-                    sh 'terraform fmt -check'
-
-                    sh 'terraform init'
-
-                    sh 'terraform validate'
-
-                    sh 'trivy config .'
-
-                    sh 'terraform plan -out=tfplan'
-
+                ]) {
+                    dir('environments/dev') {
+                        sh 'terraform fmt -check'
+                        sh 'terraform init'
+                        sh 'terraform validate'
+                        sh 'trivy config .'
+                        sh 'terraform plan -out=tfplan'
+                    }
                 }
             }
         }
-    }
 
-    stage('Manual Approval') {
-        steps {
-            input message: "Approve Terraform Apply?"
+        stage('Manual Approval') {
+            steps {
+                input message: 'Approve Terraform Apply?'
+            }
         }
-    }
 
-    stage('Terraform Apply') {
-        steps {
-            dir('environments/dev') {
-                sh 'terraform apply -auto-approve tfplan'
+        stage('Terraform Apply') {
+            steps {
+                dir('environments/dev') {
+                    sh 'terraform apply -auto-approve tfplan'
+                }
+            }
+        }
+
+        stage('Configure kubeconfig') {
+            steps {
+                sh './scripts/update-kubeconfig.sh'
+            }
+        }
+
+        stage('Verify Cluster') {
+            steps {
+                sh 'kubectl get nodes'
             }
         }
     }
 
-    stage('Configure kubeconfig') {
-        steps {
-            sh './scripts/update-kubeconfig.sh'
+    post {
+        failure {
+            echo '❌ Pipeline failed'
+        }
+        success {
+            echo '✅ Pipeline completed successfully'
         }
     }
-
-    stage('Verify Cluster') {
-        steps {
-            sh 'kubectl get nodes'
-        }
-    }
-}
-```
-
 }
