@@ -21,7 +21,7 @@ pipeline {
 
         stage('Terraform Plan (Vault Secrets)') {
             steps {
-                timeout(time: 2, unit: 'MINUTES') {
+                timeout(time: 10, unit: 'MINUTES') {
                     withVault([
                         configuration: [
                             vaultUrl: VAULT_ADDR,
