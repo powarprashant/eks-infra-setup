@@ -4,6 +4,7 @@ agent any
 ```
 environment {
     AWS_REGION = "ap-south-1"
+    VAULT_ADDR = "http://35.154.145.48:8200"
 }
 
 stages {
@@ -15,15 +16,17 @@ stages {
         }
     }
 
-    stage('Terraform Format Check') {
+    stage('Terraform Plan (Vault Secrets)') {
         steps {
+
             withVault([
                 configuration: [
-                    vaultUrl: 'http://<VAULT_SERVER_IP>:8200',
+                    vaultUrl: "${VAULT_ADDR}",
                     vaultCredentialId: 'jenkins-vault-access',
                     engineVersion: 2
                 ],
                 vaultSecrets: [
+
                     [
                         path: 'secret/aws',
                         secretValues: [
@@ -31,6 +34,7 @@ stages {
                             [envVar: 'AWS_SECRET_ACCESS_KEY', vaultKey: 'secret-access_key']
                         ]
                     ],
+
                     [
                         path: 'secret/db',
                         secretValues: [
@@ -38,6 +42,7 @@ stages {
                             [envVar: 'TF_VAR_db_password', vaultKey: 'db_password']
                         ]
                     ],
+
                     [
                         path: 'secret/docker',
                         secretValues: [
@@ -45,90 +50,22 @@ stages {
                             [envVar: 'DOCKER_PASSWORD', vaultKey: 'docker_password']
                         ]
                     ]
+
                 ]
             ]) {
+
                 dir('environments/dev') {
+
                     sh 'terraform fmt -check'
-                }
-            }
-        }
-    }
 
-    stage('Terraform Init') {
-        steps {
-            withVault([
-                configuration: [
-                    vaultUrl: 'http://35.154.145.48:8200',
-                    vaultCredentialId: 'jenkins-vault-access',
-                    engineVersion: 2
-                ],
-                vaultSecrets: [
-                    [
-                        path: 'secret/aws',
-                        secretValues: [
-                            [envVar: 'AWS_ACCESS_KEY_ID', vaultKey: 'access_key'],
-                            [envVar: 'AWS_SECRET_ACCESS_KEY', vaultKey: 'secret-access_key']
-                        ]
-                    ],
-                    [
-                        path: 'secret/db',
-                        secretValues: [
-                            [envVar: 'TF_VAR_db_username', vaultKey: 'db_username'],
-                            [envVar: 'TF_VAR_db_password', vaultKey: 'db_password']
-                        ]
-                    ],
-                    [
-                        path: 'secret/docker',
-                        secretValues: [
-                            [envVar: 'DOCKER_USERNAME', vaultKey: 'docker_username'],
-                            [envVar: 'DOCKER_PASSWORD', vaultKey: 'docker_password']
-                        ]
-                    ]
-                ]
-            ]) {
-                dir('environments/dev') {
                     sh 'terraform init'
-                }
-            }
-        }
-    }
 
-    stage('Terraform Validate') {
-        steps {
-            dir('environments/dev') {
-                sh 'terraform validate'
-            }
-        }
-    }
+                    sh 'terraform validate'
 
-    stage('Security Scan - Trivy (Terraform IaC)') {
-        steps {
-            dir('environments/dev') {
-                sh 'trivy config .'
-            }
-        }
-    }
+                    sh 'trivy config .'
 
-    stage('Terraform Plan') {
-        steps {
-            withVault([
-                configuration: [
-                    vaultUrl: 'http://<VAULT_SERVER_IP>:8200',
-                    vaultCredentialId: 'jenkins-vault-access',
-                    engineVersion: 2
-                ],
-                vaultSecrets: [
-                    [
-                        path: 'secret/db',
-                        secretValues: [
-                            [envVar: 'TF_VAR_db_username', vaultKey: 'db_username'],
-                            [envVar: 'TF_VAR_db_password', vaultKey: 'db_password']
-                        ]
-                    ]
-                ]
-            ]) {
-                dir('environments/dev') {
                     sh 'terraform plan -out=tfplan'
+
                 }
             }
         }
@@ -159,7 +96,6 @@ stages {
             sh 'kubectl get nodes'
         }
     }
-
 }
 ```
 
