@@ -1,12 +1,14 @@
 output "vpc_id" {
-  description = "VPC ID"
-  value       = aws_vpc.cloudcart_vpc.id
+description = "VPC ID"
+value       = aws_vpc.cloudcart_vpc.id
 }
 
 output "public_subnet" {
-  value = aws_subnet.public[*].id
+description = "Public subnet IDs"
+value       = aws_subnet.public[*].id
 }
 
 output "private_subnet" {
-  value = aws_subnet.private[*].id
+description = "Private subnet IDs"
+value       = aws_subnet.private[*].id
 }
