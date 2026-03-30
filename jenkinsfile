@@ -1,7 +1,7 @@
 pipeline {
 agent any
 
-```
+
 environment {
     AWS_REGION = "ap-south-1"
     CLUSTER_NAME = "eks-cluster"
@@ -95,6 +95,6 @@ post {
         echo '✅ EKS Cluster created successfully!'
     }
 }
-```
+
 
 }
