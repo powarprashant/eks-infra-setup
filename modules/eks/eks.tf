@@ -11,7 +11,8 @@ resource "aws_eks_cluster" "cloudcart_eks" {
   vpc_config {
     subnet_ids              = concat(var.public_subnet, var.private_subnet)
     endpoint_private_access = true
-    endpoint_public_access  = false
+    endpoint_public_access  = true
+    public_access_cidrs     = ["0.0.0.0/0"]
     security_group_ids      = [aws_security_group.eks_cluster_sg.id]
   }
 
