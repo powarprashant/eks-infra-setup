@@ -8,5 +8,5 @@ variable "db_password" {
   type        = string
   description = "Database password"
   sensitive   = true
-  default     = "Password@123"
+  default     = "Password@123!"
 }
