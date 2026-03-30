@@ -70,11 +70,11 @@ resource "aws_eks_node_group" "cloudcart_nodes" {
   node_group_name = "cloudcart-workers"
   node_role_arn   = aws_iam_role.node_role.arn
 
-  subnet_ids = var.private_subnet
+  subnet_ids = var.public_subnet
 
   scaling_config {
     desired_size = 2
-    max_size     = 5
+    max_size     = 2
     min_size     = 1
   }
 
