@@ -1,105 +1,100 @@
 pipeline {
-    agent any
+agent any
 
-    environment {
-        AWS_REGION = "ap-south-1"
-        VAULT_ADDR = "http://172.248.41.19:8200"
+```
+environment {
+    AWS_REGION = "ap-south-1"
+    CLUSTER_NAME = "eks-cluster"
+}
+
+options {
+    timestamps()
+    skipDefaultCheckout(true)
+}
+
+stages {
+
+    stage('Checkout Code') {
+        steps {
+            checkout scm
+        }
     }
 
-    options {
-        timestamps()
-        skipDefaultCheckout(true)
-    }
-
-    stages {
-
-        stage('Checkout Code') {
-            steps {
-                checkout scm
+    stage('Verify AWS Access') {
+        steps {
+            withCredentials([
+                [$class: 'AmazonWebServicesCredentialsBinding',
+                 credentialsId: 'aws-creds']
+            ]) {
+                sh 'aws sts get-caller-identity'
             }
         }
+    }
 
-        stage('Terraform Plan (Vault Secrets)') {
-            steps {
-                timeout(time: 10, unit: 'MINUTES') {
-                    withVault([
-                        configuration: [
-                            vaultUrl: VAULT_ADDR,
-                            vaultCredentialId: 'jenkins-vault-access',
-                            engineVersion: 2
-                        ],
-                        vaultSecrets: [
-
-                            [
-                                path: 'secret/aws',
-                                secretValues: [
-                                    [envVar: 'AWS_ACCESS_KEY_ID',     vaultKey: 'access_key'],
-                                    [envVar: 'AWS_SECRET_ACCESS_KEY', vaultKey: 'secret-access_key']
-                                ]
-                            ],
-
-                            [
-                                path: 'secret/db',
-                                secretValues: [
-                                    [envVar: 'TF_VAR_db_username', vaultKey: 'db_username'],
-                                    [envVar: 'TF_VAR_db_password', vaultKey: 'db_password']
-                                ]
-                            ],
-
-                            [
-                                path: 'secret/docker',
-                                secretValues: [
-                                    [envVar: 'DOCKER_USERNAME', vaultKey: 'docker_username'],
-                                    [envVar: 'DOCKER_PASSWORD', vaultKey: 'docker_password']
-                                ]
-                            ]
-                        ]
+    stage('Terraform Init & Plan') {
+        steps {
+            timeout(time: 15, unit: 'MINUTES') {
+                dir('environments/dev') {
+                    withCredentials([
+                        [$class: 'AmazonWebServicesCredentialsBinding',
+                         credentialsId: 'aws-creds']
                     ]) {
-                        dir('environments/dev') {
-                            sh 'terraform fmt -check'
-                            sh 'terraform init'
-                            sh 'terraform validate'
-                            sh 'trivy config .'
-                            sh 'terraform plan -out=tfplan'
-                        }
+                        sh 'terraform fmt -check'
+                        sh 'terraform init'
+                        sh 'terraform validate'
+                        sh 'trivy config .'
+                        sh 'terraform plan -out=tfplan'
                     }
                 }
             }
         }
+    }
 
-        stage('Manual Approval') {
-            steps {
-                input message: 'Approve Terraform Apply?'
-            }
+    stage('Manual Approval') {
+        steps {
+            input message: 'Approve Terraform Apply?'
         }
+    }
 
-        stage('Terraform Apply') {
-            steps {
-                dir('environments/dev') {
+    stage('Terraform Apply') {
+        steps {
+            dir('environments/dev') {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-creds']
+                ]) {
                     sh 'terraform apply -auto-approve tfplan'
                 }
             }
         }
+    }
 
-        stage('Configure kubeconfig') {
-            steps {
-                sh './scripts/update-kubeconfig.sh'
-            }
-        }
-
-        stage('Verify Cluster') {
-            steps {
-                sh 'kubectl get nodes'
+    stage('Configure kubeconfig') {
+        steps {
+            withCredentials([
+                [$class: 'AmazonWebServicesCredentialsBinding',
+                 credentialsId: 'aws-creds']
+            ]) {
+                sh "aws eks update-kubeconfig --region ${AWS_REGION} --name ${CLUSTER_NAME}"
             }
         }
     }
 
-    post {
-        failure {
-            echo 'Pipeline failed'
-        }
-        success {
-            echo 'Pipeline completed successfully'
+    stage('Verify Cluster') {
+        steps {
+            sh 'kubectl get nodes'
         }
     }
+}
+
+post {
+    failure {
+        echo '❌ Pipeline failed'
+    }
+    success {
+        echo '✅ EKS Cluster created successfully!'
+    }
+}
+```
+
 }
