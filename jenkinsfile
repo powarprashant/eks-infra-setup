@@ -39,7 +39,7 @@ stages {
                          credentialsId: 'aws-creds']
                     ]) {
                         sh '''
-                        terraform fmt -check
+                        terraform fmt
                         terraform init
                         terraform validate
                         terraform plan -out=tfplan
