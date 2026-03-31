@@ -1,7 +1,6 @@
 pipeline {
 agent any
 
-```
 environment {
     AWS_REGION  = "ap-south-1"
     CLUSTER_NAME = "cloudcart-eks"
@@ -96,6 +95,5 @@ post {
         echo '✅ EKS Cluster created successfully!'
     }
 }
-```
 
 }
