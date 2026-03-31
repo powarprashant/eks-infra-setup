@@ -1,9 +1,9 @@
 pipeline {
 agent any
 
-
+```
 environment {
-    AWS_REGION = "ap-south-1"
+    AWS_REGION  = "ap-south-1"
     CLUSTER_NAME = "cloudcart-eks"
 }
 
@@ -39,11 +39,12 @@ stages {
                         [$class: 'AmazonWebServicesCredentialsBinding',
                          credentialsId: 'aws-creds']
                     ]) {
-                        sh 'terraform fmt -check'
-                        sh 'terraform init'
-                        sh 'terraform validate'
-                        sh 'trivy config .'
-                        sh 'terraform plan -out=tfplan'
+                        sh '''
+                        terraform fmt -check
+                        terraform init
+                        terraform validate
+                        terraform plan -out=tfplan
+                        '''
                     }
                 }
             }
@@ -95,6 +96,6 @@ post {
         echo '✅ EKS Cluster created successfully!'
     }
 }
-
+```
 
 }

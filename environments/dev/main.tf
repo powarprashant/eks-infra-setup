@@ -40,28 +40,11 @@ source = "../../modules/eks"
 
 vpc_id = module.vpc.vpc_id
 
-# ✅ FIXED: pass combined subnets (no unsupported args)
 
-subnet_ids = concat(module.vpc.public_subnet, module.vpc.private_subnet)
-
-# ✅ pass public subnet separately for node group
-
-public_subnet = module.vpc.public_subnet
+public_subnet  = module.vpc.public_subnet
+private_subnet = module.vpc.private_subnet
 
 kms_key_arn = aws_kms_key.eks.arn
-}
-
-####################################
-
-# RDS
-
-####################################
-
-module "rds" {
-source = "../../modules/rds"
-
-db_username = var.db_username
-db_password = var.db_password
 }
 
 ####################################
