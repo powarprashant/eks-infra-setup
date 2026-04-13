@@ -146,10 +146,14 @@ select:
         // ==================================================
         // 5. Bootstrap Terraform Backend (idempotent)
         //
-        //    Creates the S3 bucket and DynamoDB table that
-        //    Terraform uses for remote state + locking.
-        //    This MUST run before terraform init.
-        //    Safe to re-run — skips resources that already exist.
+        //    a) Creates S3 bucket + DynamoDB table if missing.
+        //    b) Detects and removes stale DynamoDB digest entries.
+        //
+        //    Stale digest cause: a previous terraform init was
+        //    interrupted after writing the MD5 to DynamoDB but
+        //    before the S3 state file was created. Terraform then
+        //    refuses to init with "checksum mismatch". Fix = delete
+        //    the orphaned DynamoDB item so the next init starts clean.
         // ==================================================
         stage('Bootstrap Backend') {
             steps {
@@ -163,6 +167,8 @@ select:
                         BUCKET="${TF_BACKEND_BUCKET}"
                         TABLE="${TF_BACKEND_TABLE}"
                         REGION="${AWS_REGION}"
+                        STATE_KEY="${ENVIRONMENT}/terraform.tfstate"
+                        DIGEST_LOCK_ID="${BUCKET}/${STATE_KEY}-md5"
 
                         # ── S3 Bucket ─────────────────────────────────────
                         if aws s3api head-bucket --bucket "$BUCKET" --region "$REGION" 2>/dev/null; then
@@ -174,18 +180,15 @@ select:
                                 --region "$REGION" \
                                 --create-bucket-configuration LocationConstraint="$REGION"
 
-                            # Versioning — allows state file recovery
                             aws s3api put-bucket-versioning \
                                 --bucket "$BUCKET" \
                                 --versioning-configuration Status=Enabled
 
-                            # Server-side encryption (AES256)
                             aws s3api put-bucket-encryption \
                                 --bucket "$BUCKET" \
                                 --server-side-encryption-configuration \
                                 '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 
-                            # Block all public access
                             aws s3api put-public-access-block \
                                 --bucket "$BUCKET" \
                                 --public-access-block-configuration \
@@ -215,6 +218,44 @@ select:
                                 --table-name "$TABLE" \
                                 --region "$REGION"
                             echo "DynamoDB table is ACTIVE."
+                        fi
+
+                        # ── Stale Digest Cleanup ──────────────────────────
+                        # If the S3 state file does NOT exist but DynamoDB
+                        # still holds a checksum for it, terraform init will
+                        # fail with "checksum mismatch". Delete the orphan.
+                        echo "=== Checking for stale DynamoDB digest ==="
+                        echo "State key : s3://${BUCKET}/${STATE_KEY}"
+                        echo "Digest key: ${DIGEST_LOCK_ID}"
+
+                        if aws s3api head-object \
+                                --bucket "$BUCKET" \
+                                --key "$STATE_KEY" \
+                                --region "$REGION" 2>/dev/null; then
+                            echo "S3 state file exists — no cleanup needed."
+                        else
+                            echo "S3 state file does not exist yet."
+                            STORED_DIGEST=$(aws dynamodb get-item \
+                                --table-name "$TABLE" \
+                                --key "{\"LockID\":{\"S\":\"${DIGEST_LOCK_ID}\"}}" \
+                                --region "$REGION" \
+                                --query 'Item.Digest.S' \
+                                --output text 2>/dev/null || true)
+
+                            if [ -n "$STORED_DIGEST" ] && \
+                               [ "$STORED_DIGEST" != "None" ] && \
+                               [ "$STORED_DIGEST" != "null" ] && \
+                               [ "$STORED_DIGEST" != "NULL" ]; then
+                                echo "Found stale digest in DynamoDB: ${STORED_DIGEST}"
+                                echo "Removing stale digest entry..."
+                                aws dynamodb delete-item \
+                                    --table-name "$TABLE" \
+                                    --key "{\"LockID\":{\"S\":\"${DIGEST_LOCK_ID}\"}}" \
+                                    --region "$REGION"
+                                echo "Stale digest removed — terraform init will now succeed."
+                            else
+                                echo "No stale digest found — backend is clean."
+                            fi
                         fi
 
                         echo "=== Backend is ready ==="
