@@ -1,18 +1,7 @@
-##############################################################
-# Jenkinsfile — Production-grade EKS Deployment Pipeline
-# Financial Domain | cloudcart
-#
-# Prerequisites on Jenkins agent:
-#   - terraform >= 1.9
-#   - aws cli >= 2.x
-#   - kubectl >= 1.29
-#   - Jenkins credential: 'aws-creds' (AWS credentials binding)
-#
-# Pipeline flow:
-#   Tool Check → Checkout → AWS Identity → Format → Init →
-#   Validate → Plan → Approval → Apply/Destroy →
-#   Wait for EKS → Configure kubeconfig → Verify Cluster
-##############################################################
+// ==========================================================
+// Jenkinsfile — EKS Infrastructure Deployment Pipeline
+// Domain: Cloud / DevOps (Production Grade)
+// ==========================================================
 
 pipeline {
     agent any
@@ -25,8 +14,8 @@ pipeline {
         )
         choice(
             name: 'ENVIRONMENT',
-            choices: ['prod', 'staging', 'dev'],
-            description: 'Target environment (prod is default)'
+            choices: ['dev', 'staging', 'prod'],
+            description: 'Target environment'
         )
     }
 
@@ -40,39 +29,40 @@ pipeline {
     options {
         timestamps()
         skipDefaultCheckout(true)
+        disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '20'))
         timeout(time: 90, unit: 'MINUTES')
     }
 
     stages {
 
-        stage('Tool Verification') {
+        // ==================================================
+        // Tool Verification
+        // ==================================================
+        stage('Verify Tools') {
             steps {
                 sh '''
-                    echo "========================================"
-                    echo " Verifying required tools"
-                    echo "========================================"
-                    echo ""
-                    echo "--- Terraform ---"
+                    set -e
+                    echo "=== Verifying required tools ==="
                     terraform version
-                    echo ""
-                    echo "--- AWS CLI ---"
                     aws --version
-                    echo ""
-                    echo "--- kubectl ---"
                     kubectl version --client
-                    echo ""
-                    echo "All tools verified successfully."
                 '''
             }
         }
 
+        // ==================================================
+        // Checkout Code
+        // ==================================================
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
+        // ==================================================
+        // AWS Identity Validation
+        // ==================================================
         stage('AWS Identity') {
             steps {
                 withCredentials([[
@@ -80,42 +70,48 @@ pipeline {
                     credentialsId: 'aws-creds'
                 ]]) {
                     sh '''
-                        echo "========================================"
-                        echo " AWS Identity & Target"
-                        echo "========================================"
+                        set -e
+                        echo "=== AWS Identity ==="
                         aws sts get-caller-identity
-                        echo ""
-                        echo "Region    : ${AWS_REGION}"
-                        echo "Environment: ${ENVIRONMENT}"
-                        echo "Action    : ${TF_ACTION}"
+                        echo "Region      : ${AWS_REGION}"
+                        echo "Environment : ${ENVIRONMENT}"
+                        echo "Action      : ${TF_ACTION}"
                     '''
                 }
             }
         }
 
-        stage('Terraform Format Check') {
+        // ==================================================
+        // Terraform Format Check
+        // ==================================================
+        stage('Terraform Format') {
             steps {
-                // -check flag never modifies files — safe for CI
-                // -recursive checks all .tf files in the repo
                 sh 'terraform fmt -check -recursive'
             }
         }
 
+        // ==================================================
+        // Terraform Init
+        // ==================================================
         stage('Terraform Init') {
             steps {
-                timeout(time: 10, unit: 'MINUTES') {
-                    dir(env.TF_DIR) {
-                        withCredentials([[
-                            $class: 'AmazonWebServicesCredentialsBinding',
-                            credentialsId: 'aws-creds'
-                        ]]) {
-                            sh 'terraform init -input=false'
-                        }
+                dir(env.TF_DIR) {
+                    withCredentials([[
+                        $class: 'AmazonWebServicesCredentialsBinding',
+                        credentialsId: 'aws-creds'
+                    ]]) {
+                        sh '''
+                            set -e
+                            terraform init -input=false
+                        '''
                     }
                 }
             }
         }
 
+        // ==================================================
+        // Terraform Validate
+        // ==================================================
         stage('Terraform Validate') {
             steps {
                 dir(env.TF_DIR) {
@@ -124,26 +120,31 @@ pipeline {
             }
         }
 
+        // ==================================================
+        // Terraform Plan
+        // ==================================================
         stage('Terraform Plan') {
             steps {
-                timeout(time: 20, unit: 'MINUTES') {
-                    dir(env.TF_DIR) {
-                        withCredentials([[
-                            $class: 'AmazonWebServicesCredentialsBinding',
-                            credentialsId: 'aws-creds'
-                        ]]) {
-                            sh """
-                                terraform plan \
-                                  -input=false \
-                                  -out=${env.TF_PLAN_FILE} \
-                                  ${params.TF_ACTION == 'destroy' ? '-destroy' : ''}
-                            """
-                        }
+                dir(env.TF_DIR) {
+                    withCredentials([[
+                        $class: 'AmazonWebServicesCredentialsBinding',
+                        credentialsId: 'aws-creds'
+                    ]]) {
+                        sh """
+                            set -e
+                            terraform plan \
+                              -input=false \
+                              -out=${env.TF_PLAN_FILE} \
+                              ${params.TF_ACTION == 'destroy' ? '-destroy' : ''}
+                        """
                     }
                 }
             }
         }
 
+        // ==================================================
+        // Manual Approval (Critical Step)
+        // ==================================================
         stage('Approval') {
             when {
                 anyOf {
@@ -151,124 +152,95 @@ pipeline {
                     expression { params.TF_ACTION == 'destroy' }
                 }
             }
-            options {
-                // Pipeline will abort automatically if no one approves within 30 min
-                timeout(time: 30, unit: 'MINUTES')
-            }
             steps {
-                script {
-                    def envUpper = params.ENVIRONMENT.toUpperCase()
-                    def msg = (params.TF_ACTION == 'destroy')
-                        ? "CRITICAL: You are about to DESTROY the ${envUpper} environment. This is IRREVERSIBLE. Proceed?"
-                        : "Approve terraform apply for [${envUpper}] environment?"
-                    input message: msg, ok: 'Proceed'
-                }
-            }
-        }
+                timeout(time: 30, unit: 'MINUTES') {
+                    script {
+                        def msg = params.TF_ACTION == 'destroy' ?
+                            "CRITICAL: Destroy ${params.ENVIRONMENT.toUpperCase()} environment?" :
+                            "Approve APPLY for ${params.ENVIRONMENT.toUpperCase()}?"
 
-        stage('Terraform Apply') {
-            when {
-                expression { params.TF_ACTION == 'apply' }
-            }
-            steps {
-                // EKS cluster + 3 node groups + addons can take ~25-40 min
-                timeout(time: 60, unit: 'MINUTES') {
-                    dir(env.TF_DIR) {
-                        withCredentials([[
-                            $class: 'AmazonWebServicesCredentialsBinding',
-                            credentialsId: 'aws-creds'
-                        ]]) {
-                            sh "terraform apply -input=false -auto-approve ${env.TF_PLAN_FILE}"
-                        }
+                        input message: msg, ok: 'Proceed'
                     }
                 }
             }
         }
 
-        stage('Terraform Destroy') {
+        // ==================================================
+        // Terraform Apply / Destroy
+        // ==================================================
+        stage('Terraform Execute') {
             when {
-                expression { params.TF_ACTION == 'destroy' }
+                anyOf {
+                    expression { params.TF_ACTION == 'apply' }
+                    expression { params.TF_ACTION == 'destroy' }
+                }
             }
             steps {
-                timeout(time: 60, unit: 'MINUTES') {
-                    dir(env.TF_DIR) {
-                        withCredentials([[
-                            $class: 'AmazonWebServicesCredentialsBinding',
-                            credentialsId: 'aws-creds'
-                        ]]) {
-                            // Plan file was generated with -destroy flag in the Plan stage
-                            sh "terraform apply -input=false -auto-approve ${env.TF_PLAN_FILE}"
-                        }
+                dir(env.TF_DIR) {
+                    withCredentials([[
+                        $class: 'AmazonWebServicesCredentialsBinding',
+                        credentialsId: 'aws-creds'
+                    ]]) {
+                        sh """
+                            set -e
+                            terraform apply -input=false -auto-approve ${env.TF_PLAN_FILE}
+                        """
                     }
                 }
             }
         }
 
+        // ==================================================
+        // Configure kubeconfig
+        // ==================================================
         stage('Configure kubeconfig') {
             when {
                 expression { params.TF_ACTION == 'apply' }
             }
             steps {
-                timeout(time: 20, unit: 'MINUTES') {
+                dir(env.TF_DIR) {
                     withCredentials([[
                         $class: 'AmazonWebServicesCredentialsBinding',
                         credentialsId: 'aws-creds'
                     ]]) {
-                        dir(env.TF_DIR) {
-                            script {
-                                // Read cluster name from terraform output — single source of truth
-                                def clusterName = sh(
-                                    script: 'terraform output -raw cluster_name',
-                                    returnStdout: true
-                                ).trim()
+                        script {
+                            def clusterName = sh(
+                                script: 'terraform output -raw cluster_name',
+                                returnStdout: true
+                            ).trim()
 
-                                // Wait until EKS control plane is fully ACTIVE
-                                // (terraform apply finishes when the cluster is created,
-                                //  but this is an extra safety check before kubectl calls)
-                                sh "aws eks wait cluster-active --region ${env.AWS_REGION} --name ${clusterName}"
+                            sh """
+                                set -e
+                                aws eks wait cluster-active --region ${env.AWS_REGION} --name ${clusterName}
+                                aws eks update-kubeconfig --region ${env.AWS_REGION} --name ${clusterName}
+                            """
 
-                                // Merge credentials into ~/.kube/config on the Jenkins agent
-                                sh "aws eks update-kubeconfig --region ${env.AWS_REGION} --name ${clusterName}"
-
-                                echo "kubeconfig configured for cluster: ${clusterName}"
-                            }
+                            echo "Configured kubeconfig for cluster: ${clusterName}"
                         }
                     }
                 }
             }
         }
 
+        // ==================================================
+        // Verify Cluster Health
+        // ==================================================
         stage('Verify Cluster') {
             when {
                 expression { params.TF_ACTION == 'apply' }
             }
             steps {
-                // Wait up to 10 min for all nodes to join and reach Ready state
-                timeout(time: 10, unit: 'MINUTES') {
-                    sh '''
-                        echo "========================================"
-                        echo " Waiting for nodes to be Ready..."
-                        echo "========================================"
-                        kubectl wait --for=condition=Ready nodes \
-                          --all \
-                          --timeout=600s
+                sh '''
+                    set -e
+                    echo "=== Waiting for nodes ==="
+                    kubectl wait --for=condition=Ready nodes --all --timeout=600s
 
-                        echo ""
-                        echo "========================================"
-                        echo " Node Status"
-                        echo "========================================"
-                        kubectl get nodes -o wide
+                    echo "=== Nodes ==="
+                    kubectl get nodes -o wide
 
-                        echo ""
-                        echo "========================================"
-                        echo " System Pods (kube-system)"
-                        echo "========================================"
-                        kubectl get pods -n kube-system
-
-                        echo ""
-                        echo "EKS cluster is healthy and ready."
-                    '''
-                }
+                    echo "=== System Pods ==="
+                    kubectl get pods -n kube-system
+                '''
             }
         }
     }
@@ -278,13 +250,13 @@ pipeline {
             cleanWs()
         }
         success {
-            echo "Pipeline succeeded | action=${params.TF_ACTION} | env=${params.ENVIRONMENT} | build=#${BUILD_NUMBER}"
+            echo "SUCCESS: ${params.TF_ACTION} on ${params.ENVIRONMENT}"
         }
         failure {
-            echo "Pipeline FAILED | action=${params.TF_ACTION} | env=${params.ENVIRONMENT} | build=#${BUILD_NUMBER}"
+            echo "FAILED: ${params.TF_ACTION} on ${params.ENVIRONMENT}"
         }
         aborted {
-            echo "Pipeline aborted by user | build=#${BUILD_NUMBER}"
+            echo "ABORTED by user"
         }
     }
 }
