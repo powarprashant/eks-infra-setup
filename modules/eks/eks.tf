@@ -20,7 +20,8 @@
 resource "aws_cloudwatch_log_group" "eks" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
   retention_in_days = 90
-  
+  kms_key_id        = var.kms_key_arn != "" ? var.kms_key_arn : null
+
   tags = var.tags
 }
 
@@ -41,11 +42,16 @@ resource "aws_eks_cluster" "main" {
     security_group_ids      = [aws_security_group.cluster.id]
   }
 
-  encryption_config {
-    provider {
-      key_arn = var.kms_key_arn
+  # KMS encryption for etcd secrets — required for financial/compliance workloads.
+  # Pass kms_key_arn from the root module; leave empty only in non-prod environments.
+  dynamic "encryption_config" {
+    for_each = var.kms_key_arn != "" ? [1] : []
+    content {
+      provider {
+        key_arn = var.kms_key_arn
+      }
+      resources = ["secrets"]
     }
-    resources = ["secrets"]
   }
 
   # Modern EKS API authentication — eliminates aws-auth ConfigMap manipulation.

@@ -25,8 +25,9 @@ variable "private_subnet_ids" {
 }
 
 variable "kms_key_arn" {
-  description = "KMS key ARN for Kubernetes secrets encryption and CloudWatch log group encryption"
+  description = "KMS key ARN for Kubernetes secrets encryption and CloudWatch log group encryption. Leave empty to skip encryption (non-prod only — required for financial/compliance workloads)."
   type        = string
+  default     = ""
 }
 
 variable "public_access_cidrs" {
