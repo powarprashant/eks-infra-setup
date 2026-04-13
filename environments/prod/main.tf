@@ -98,10 +98,10 @@ resource "aws_kms_alias" "main" {
 module "vpc" {
   source = "../../modules/vpc"
 
-  vpc_name    = "cloudcart-vpc-prod"
-  vpc_cidr    = "10.0.0.0/16"
+  vpc_name     = "cloudcart-vpc-prod"
+  vpc_cidr     = "10.0.0.0/16"
   cluster_name = local.cluster_name
-  environment = local.environment
+  environment  = local.environment
 
   # 3 AZs — one NAT Gateway per AZ for high availability
   public_subnet_cidrs  = ["10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"]
