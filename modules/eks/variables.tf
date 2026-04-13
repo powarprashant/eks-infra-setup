@@ -78,6 +78,12 @@ variable "environment" {
   default     = "dev"
 }
 
+variable "jenkins_role_arn" {
+  description = "IAM principal ARN (user or role) for the Jenkins pipeline. Added as cluster-admin via EKS Access Entry so the pipeline can run kubectl. Get it with: aws sts get-caller-identity --query Arn --output text"
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Common tags applied to all resources in this module"
   type        = map(string)

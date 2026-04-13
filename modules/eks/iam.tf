@@ -142,3 +142,37 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
   role       = aws_iam_role.ebs_csi.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
+
+##################################
+# 5. Jenkins EKS Access Entry
+# Grants the Jenkins pipeline IAM role cluster-admin via the modern
+# EKS Access Entry API (authentication_mode = API_AND_CONFIG_MAP).
+#
+# Why not rely solely on bootstrap_cluster_creator_admin_permissions?
+# That flag only covers the exact IAM principal that called CreateCluster.
+# If Jenkins uses an assumed-role session, the session ARN != the role ARN
+# and EKS rejects kubectl calls with "provide credentials".
+# An explicit access entry bound to the role ARN is resilient to this.
+##################################
+
+resource "aws_eks_access_entry" "jenkins" {
+  count         = var.jenkins_role_arn != "" ? 1 : 0
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = var.jenkins_role_arn
+  type          = "STANDARD"
+
+  tags = var.tags
+}
+
+resource "aws_eks_access_policy_association" "jenkins" {
+  count         = var.jenkins_role_arn != "" ? 1 : 0
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = var.jenkins_role_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.jenkins]
+}

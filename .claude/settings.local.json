@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(terraform fmt:*)",
-      "Bash(echo \"Exit code: $?\")"
+      "Bash(echo \"Exit code: $?\")",
+      "Read(//d/eks-3tier-setup/**)"
     ]
   }
 }
