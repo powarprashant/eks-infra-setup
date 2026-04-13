@@ -15,23 +15,6 @@ locals {
 }
 
 ##################################
-# KMS — EKS secrets encryption
-##################################
-
-resource "aws_kms_key" "main" {
-  description             = "EKS cluster KMS key — ${local.cluster_name}"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
-
-  tags = { Name = "${local.cluster_name}-key" }
-}
-
-resource "aws_kms_alias" "main" {
-  name          = "alias/${local.cluster_name}"
-  target_key_id = aws_kms_key.main.key_id
-}
-
-##################################
 # VPC
 # Flow logs disabled in dev — cost saving
 ##################################
@@ -64,7 +47,8 @@ module "eks" {
   public_subnet_ids  = module.vpc.public_subnet_ids
   private_subnet_ids = module.vpc.private_subnet_ids
 
-  kms_key_arn = aws_kms_key.main.arn
+  # kms_key_arn omitted — defaults to "" — no KMS encryption in dev (cost saving)
+  # For prod, create a KMS key with logs.amazonaws.com in its key policy and pass the ARN here.
 
   # Dev sizing — minimal cost
   node_instance_types = ["t3.medium"]
