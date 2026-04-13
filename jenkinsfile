@@ -269,6 +269,8 @@ select:
                             sh '''
                                 set -e
                                 echo "=== Terraform Init: ${TF_DIR} ==="
+                                rm -rf .terraform
+                                rm -f .terraform.lock.hcl
                                 terraform init -reconfigure -input=false
                                 echo "=== Init complete ==="
                             '''
