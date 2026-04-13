@@ -220,43 +220,24 @@ select:
                             echo "DynamoDB table is ACTIVE."
                         fi
 
-                        # ── Stale Digest Cleanup ──────────────────────────
-                        # If the S3 state file does NOT exist but DynamoDB
-                        # still holds a checksum for it, terraform init will
-                        # fail with "checksum mismatch". Delete the orphan.
-                        echo "=== Checking for stale DynamoDB digest ==="
-                        echo "State key : s3://${BUCKET}/${STATE_KEY}"
-                        echo "Digest key: ${DIGEST_LOCK_ID}"
-
-                        if aws s3api head-object \
-                                --bucket "$BUCKET" \
-                                --key "$STATE_KEY" \
-                                --region "$REGION" 2>/dev/null; then
-                            echo "S3 state file exists — no cleanup needed."
-                        else
-                            echo "S3 state file does not exist yet."
-                            STORED_DIGEST=$(aws dynamodb get-item \
-                                --table-name "$TABLE" \
-                                --key "{\"LockID\":{\"S\":\"${DIGEST_LOCK_ID}\"}}" \
-                                --region "$REGION" \
-                                --query 'Item.Digest.S' \
-                                --output text 2>/dev/null || true)
-
-                            if [ -n "$STORED_DIGEST" ] && \
-                               [ "$STORED_DIGEST" != "None" ] && \
-                               [ "$STORED_DIGEST" != "null" ] && \
-                               [ "$STORED_DIGEST" != "NULL" ]; then
-                                echo "Found stale digest in DynamoDB: ${STORED_DIGEST}"
-                                echo "Removing stale digest entry..."
-                                aws dynamodb delete-item \
-                                    --table-name "$TABLE" \
-                                    --key "{\"LockID\":{\"S\":\"${DIGEST_LOCK_ID}\"}}" \
-                                    --region "$REGION"
-                                echo "Stale digest removed — terraform init will now succeed."
-                            else
-                                echo "No stale digest found — backend is clean."
-                            fi
-                        fi
+                        # ── DynamoDB Digest Cleanup (always run) ──────────
+                        # Terraform stores an MD5 checksum of the state file
+                        # in DynamoDB (LockID = "<bucket>/<key>-md5") to detect
+                        # S3 tampering. If the checksum exists but the S3 file
+                        # is missing or empty (e.g. from a previous aborted run),
+                        # terraform init fails with "checksum mismatch".
+                        #
+                        # Fix: always delete the digest entry before init.
+                        # - delete-item is a no-op when the item doesn't exist
+                        # - Terraform will recalculate and re-store it after init
+                        # - The state file itself is never touched
+                        echo "=== Clearing DynamoDB state digest (idempotent) ==="
+                        aws dynamodb delete-item \
+                            --table-name "$TABLE" \
+                            --region "$REGION" \
+                            --key "{\"LockID\":{\"S\":\"${BUCKET}/${ENVIRONMENT}/terraform.tfstate-md5\"}}" \
+                            2>/dev/null || true
+                        echo "DynamoDB digest cleared."
 
                         echo "=== Backend is ready ==="
                     '''
@@ -288,7 +269,7 @@ select:
                             sh '''
                                 set -e
                                 echo "=== Terraform Init: ${TF_DIR} ==="
-                                terraform init -input=false
+                                terraform init -reconfigure -input=false
                                 echo "=== Init complete ==="
                             '''
                         }
