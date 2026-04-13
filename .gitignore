@@ -1,7 +1,14 @@
-# Terraform files
+# Terraform working directory and state
 .terraform/
 *.tfstate
 *.tfstate.backup
-*.tfvars
+*.tfplan
 crashlogs
 
+# Lock files SHOULD be committed — they pin provider versions for the whole team
+# DO NOT add .terraform.lock.hcl here
+
+# Only ignore tfvars files that contain secrets.
+# Non-sensitive tfvars (environment names, CIDRs, sizing) should be tracked.
+secrets.tfvars
+*.secrets.tfvars
