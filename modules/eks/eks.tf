@@ -20,8 +20,7 @@
 resource "aws_cloudwatch_log_group" "eks" {
   name              = "/aws/eks/${var.cluster_name}/cluster"
   retention_in_days = 90
-  kms_key_id        = var.kms_key_arn
-
+  
   tags = var.tags
 }
 
@@ -97,7 +96,7 @@ resource "aws_iam_openid_connect_provider" "main" {
 
 resource "aws_security_group" "cluster" {
   name        = "${var.cluster_name}-cluster-sg"
-  description = "EKS control plane security group — managed by Terraform"
+  description = "EKS control plane security group - managed by Terraform"
   vpc_id      = var.vpc_id
 
   egress {

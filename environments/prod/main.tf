@@ -138,10 +138,10 @@ module "eks" {
 
   # Production node sizing — t3.large minimum for financial workloads
   node_instance_types = ["t3.large"]
-  node_desired_size   = 3
-  node_max_size       = 6
-  node_min_size       = 2
-  node_disk_size      = 50
+  node_desired_size   = 2
+  node_max_size       = 2
+  node_min_size       = 1
+  node_disk_size      = 20
 
   tags = local.common_tags
 }
