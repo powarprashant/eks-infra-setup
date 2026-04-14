@@ -47,6 +47,10 @@ module "eks" {
   public_subnet_ids  = module.vpc.public_subnet_ids
   private_subnet_ids = module.vpc.private_subnet_ids
 
+  # Jenkins EC2 instance profile role — already attached to the Jenkins EC2.
+  # Verified via: aws sts get-caller-identity → assumed-role/jenkins-eks-roles
+  jenkins_role_arn = "arn:aws:iam::361357546722:role/jenkins-eks-roles"
+
   # kms_key_arn omitted — defaults to "" — no KMS encryption in dev (cost saving)
   # For prod, create a KMS key with logs.amazonaws.com in its key policy and pass the ARN here.
 

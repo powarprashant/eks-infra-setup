@@ -78,6 +78,12 @@ variable "environment" {
   default     = "dev"
 }
 
+variable "jenkins_role_arn" {
+  description = "IAM role ARN for the Jenkins EC2 instance profile. Added as cluster-admin via EKS Access Entry so the pipeline can run kubectl."
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Common tags applied to all resources in this module"
   type        = map(string)

@@ -144,12 +144,30 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
 }
 
 ##################################
-# 5. Additional EKS Access Entries
-# bootstrap_cluster_creator_admin_permissions = true (set on the cluster)
-# automatically creates a cluster-admin access entry for the IAM principal
-# that runs CreateCluster (the Terraform/Jenkins runner).
-#
-# Add explicit aws_eks_access_entry resources here ONLY for additional
-# principals that are NOT the cluster creator — e.g., a separate CD role,
-# a developer IAM role, or a cross-account pipeline role.
+# 5. Jenkins EC2 Role — EKS Access Entry
+# Grants the Jenkins EC2 instance profile role cluster-admin access.
+# This is explicit and authoritative — survives cluster recreation
+# without any aws-auth ConfigMap patching.
 ##################################
+
+resource "aws_eks_access_entry" "jenkins" {
+  count         = var.jenkins_role_arn != "" ? 1 : 0
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = var.jenkins_role_arn
+  type          = "STANDARD"
+
+  tags = var.tags
+}
+
+resource "aws_eks_access_policy_association" "jenkins" {
+  count         = var.jenkins_role_arn != "" ? 1 : 0
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = var.jenkins_role_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [aws_eks_access_entry.jenkins]
+}
