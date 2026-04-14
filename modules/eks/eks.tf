@@ -166,8 +166,16 @@ resource "aws_eks_node_group" "workers" {
 
 ##################################
 # Managed Add-ons
-# Must be installed after the node group is ready.
-# vpc-cni and ebs-csi use IRSA for least-privilege AWS access.
+#
+# Installation order matters:
+#   1. vpc-cni   — must be ACTIVE first; all other pods need pod IPs from CNI
+#   2. kube-proxy — service networking; depends on vpc-cni
+#   3. coredns   — DNS resolution; pods need IPs (vpc-cni) before they can start
+#   4. ebs-csi   — storage; depends on coredns for internal name resolution
+#
+# vpc-cni and ebs-csi use IRSA for least-privilege AWS API access.
+# Timeouts extended to 30m — fresh clusters can take time for nodes to
+# register and for the add-on pods to be scheduled and reach Running state.
 ##################################
 
 resource "aws_eks_addon" "vpc_cni" {
@@ -177,15 +185,11 @@ resource "aws_eks_addon" "vpc_cni" {
   resolve_conflicts_on_update = "OVERWRITE"
   service_account_role_arn    = aws_iam_role.vpc_cni.arn
 
-  tags       = var.tags
-  depends_on = [aws_eks_node_group.workers]
-}
-
-resource "aws_eks_addon" "coredns" {
-  cluster_name                = aws_eks_cluster.main.name
-  addon_name                  = "coredns"
-  resolve_conflicts_on_create = "OVERWRITE"
-  resolve_conflicts_on_update = "OVERWRITE"
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "20m"
+  }
 
   tags       = var.tags
   depends_on = [aws_eks_node_group.workers]
@@ -197,8 +201,30 @@ resource "aws_eks_addon" "kube_proxy" {
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "20m"
+  }
+
   tags       = var.tags
-  depends_on = [aws_eks_node_group.workers]
+  depends_on = [aws_eks_addon.vpc_cni]
+}
+
+resource "aws_eks_addon" "coredns" {
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "coredns"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "20m"
+  }
+
+  tags       = var.tags
+  depends_on = [aws_eks_addon.vpc_cni]
 }
 
 resource "aws_eks_addon" "ebs_csi" {
@@ -208,6 +234,12 @@ resource "aws_eks_addon" "ebs_csi" {
   resolve_conflicts_on_update = "OVERWRITE"
   service_account_role_arn    = aws_iam_role.ebs_csi.arn
 
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "20m"
+  }
+
   tags       = var.tags
-  depends_on = [aws_eks_node_group.workers]
+  depends_on = [aws_eks_addon.coredns]
 }

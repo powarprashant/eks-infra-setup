@@ -137,7 +137,7 @@ module "eks" {
   enable_public_endpoint = true
 
   # Production node sizing — t3.large minimum for financial workloads
-  node_instance_types = ["t2.micro"]
+  node_instance_types = ["t3.medium"]
   node_desired_size   = 2
   node_max_size       = 2
   node_min_size       = 1

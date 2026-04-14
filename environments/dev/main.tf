@@ -54,8 +54,11 @@ module "eks" {
   # kms_key_arn omitted — defaults to "" — no KMS encryption in dev (cost saving)
   # For prod, create a KMS key with logs.amazonaws.com in its key policy and pass the ARN here.
 
-  # Dev sizing — minimal cost
-  node_instance_types = ["t2.micro"]
+  # Dev sizing — t3.medium minimum for Bottlerocket + EKS system pods.
+  # t2.micro (1GB RAM) causes node memory pressure before any app pods run:
+  # Bottlerocket OS + vpc-cni + kube-proxy + coredns×2 + ebs-csi = ~950MB.
+  # t3.medium (4GB RAM) leaves ~3GB free for workloads.
+  node_instance_types = ["t3.medium"]
   node_desired_size   = 2
   node_max_size       = 2
   node_min_size       = 1
