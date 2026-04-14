@@ -51,9 +51,9 @@ module "eks" {
   # For prod, create a KMS key with logs.amazonaws.com in its key policy and pass the ARN here.
 
   # Dev sizing — minimal cost
-  node_instance_types = ["t3.medium"]
+  node_instance_types = ["t2.micro"]
   node_desired_size   = 2
-  node_max_size       = 3
+  node_max_size       = 2
   node_min_size       = 1
   node_disk_size      = 20
 

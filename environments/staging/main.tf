@@ -65,9 +65,9 @@ module "eks" {
 
   kms_key_arn = aws_kms_key.main.arn
 
-  node_instance_types = ["t3.medium"]
+  node_instance_types = ["t2.micro"]
   node_desired_size   = 2
-  node_max_size       = 4
+  node_max_size       = 2
   node_min_size       = 2
   node_disk_size      = 30
 
