@@ -105,17 +105,17 @@ resource "aws_security_group" "cluster" {
   description = "EKS control plane security group - managed by Terraform"
   vpc_id      = var.vpc_id
 
-  egress {
-    description = "Allow all outbound traffic"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   tags = merge(var.tags, {
     Name = "${var.cluster_name}-cluster-sg"
   })
+}
+
+# Inline egress blocks were removed in AWS provider v6; use dedicated resources instead.
+resource "aws_vpc_security_group_egress_rule" "cluster_all" {
+  security_group_id = aws_security_group.cluster.id
+  description       = "Allow all outbound traffic"
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
 }
 
 ##################################
