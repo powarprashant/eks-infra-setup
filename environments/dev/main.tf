@@ -11,7 +11,7 @@ provider "aws" {
 }
 
 locals {
-  cluster_name = "cloudcart-eks-dev"
+  cluster_name = "ppowar"
 }
 
 ##################################
