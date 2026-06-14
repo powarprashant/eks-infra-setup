@@ -114,7 +114,8 @@ jobs:
         run: |
           DESTROY_FLAG=""
           [ "${{ steps.resolve.outputs.action }}" == "destroy" ] && DESTROY_FLAG="-destroy"
-          terraform plan $DESTROY_FLAG -out=tfplan.binary | tee /tmp/plan.txt
+          set -o pipefail
+          terraform plan $DESTROY_FLAG -out=tfplan.binary 2>&1 | tee /tmp/plan.txt
           echo "## Terraform Plan: dev" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cat /tmp/plan.txt >> $GITHUB_STEP_SUMMARY
