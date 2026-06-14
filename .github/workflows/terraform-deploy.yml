@@ -107,6 +107,12 @@ jobs:
       - name: Terraform Init
         run: terraform init -reconfigure
 
+      - name: Remove Stale State Entries
+        run: |
+          terraform state rm 'module.eks.aws_vpc_security_group_egress_rule.cluster_all' 2>/dev/null \
+            && echo "Removed stale egress rule from state." \
+            || echo "Entry not in state, nothing to remove."
+
       - name: Resolve Action
         id: resolve
         run: |
