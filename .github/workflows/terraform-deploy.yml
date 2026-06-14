@@ -92,6 +92,12 @@ jobs:
             aws dynamodb wait table-exists --table-name "$TABLE" --region "$REGION"
           fi
 
+          echo "==> Clearing any stale Terraform state lock"
+          aws dynamodb delete-item \
+            --table-name "$TABLE" \
+            --key "{\"LockID\": {\"S\": \"${BUCKET}/dev/terraform.tfstate\"}}" \
+            --region "$REGION" 2>/dev/null && echo "  Lock cleared (or was already absent)." || true
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
